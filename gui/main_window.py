@@ -605,16 +605,19 @@ class MainWindow(QMainWindow):
             obj = root.data(0, Qt.ItemDataRole.UserRole)
             if obj and hasattr(obj, 'uid') and obj.uid == uid:
                 self.tree.setCurrentItem(root)
+                self.tree.scrollToItem(root)
                 return
             found = find_item(root)
             if found:
-                # Select the item (this will trigger _on_selection_changed)
-                self.tree.setCurrentItem(found)
-                # Expand parent to make sure it's visible
+                # First expand all parents to make sure item is visible
                 parent = found.parent()
                 while parent:
                     parent.setExpanded(True)
                     parent = parent.parent()
+                
+                # Now select the item (this will trigger _on_selection_changed)
+                self.tree.setCurrentItem(found)
+                self.tree.scrollToItem(found)
                 return
 
     def _on_selection_changed(self):
@@ -667,8 +670,62 @@ class MainWindow(QMainWindow):
         """Handle editor value changes."""
         self._modified = True
         self._update_title()
-        self._refresh_tree()
-        self._refresh_composition_view()
+        
+        # Check if we should skip tree refresh (e.g., for operation argument changes)
+        sender = self.sender()
+        skip_tree = getattr(sender, '_skip_tree_refresh', False) if sender else False
+        
+        if not skip_tree:
+            # Instead of full refresh, just update the selected item's text
+            self._update_selected_item_text()
+            self._refresh_composition_view()
+
+    def _update_selected_item_text(self):
+        """Update just the selected tree item's display text without full refresh."""
+        items = self.tree.selectedItems()
+        if not items:
+            return
+        
+        item = items[0]
+        item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
+        obj = item.data(0, Qt.ItemDataRole.UserRole)
+        
+        if not obj:
+            return
+        
+        # Update the item text based on type
+        if item_type == "swc":
+            item.setText(0, f"📦 {obj.name}")
+        elif item_type == "interface":
+            icon = "🔗" if obj.interface_type == InterfaceType.SENDER_RECEIVER else "⚡"
+            item.setText(0, f"{icon} {obj.name}")
+        elif item_type == "port":
+            icon = "◀" if obj.direction == PortDirection.REQUIRED else "▶"
+            connections = self.project.get_connections_for_port(obj.uid)
+            conn_indicator = " 🔌" if connections else ""
+            item.setText(0, f"  {icon} {obj.name}{conn_indicator}")
+        elif item_type == "runnable":
+            trigger_icons = {
+                RunnableTrigger.TIMING: "⏱️",
+                RunnableTrigger.OPERATION_INVOKED: "⚡",
+                RunnableTrigger.DATA_RECEIVED: "📨",
+            }
+            trigger_icon = trigger_icons.get(obj.trigger, "▷")
+            item.setText(0, f"  {trigger_icon} {obj.name}")
+        elif item_type == "data_element":
+            item.setText(0, f"  📊 {obj.name}")
+        elif item_type == "operation":
+            item.setText(0, f"  ⚙️ {obj.name}")
+        elif item_type == "app_data_type":
+            item.setText(0, f"🔷 {obj.name}")
+        elif item_type == "impl_data_type":
+            item.setText(0, f"🔶 {obj.name}")
+        elif item_type == "compu_method":
+            item.setText(0, f"📐 {obj.name}")
+        elif item_type == "connection":
+            item.setText(0, f"🔌 {obj.name}")
+        elif item_type == "project":
+            item.setText(0, f"📁 {obj.name}")
 
     def _refresh_composition_view(self):
         """Refresh the graphical composition view."""

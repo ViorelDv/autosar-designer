@@ -706,6 +706,7 @@ class OperationEditor(QWidget, EditorStyleMixin):
         self.operation: Operation = None
         self._app_types = []
         self._updating = False
+        self._skip_tree_refresh = False  # Flag to skip tree refresh for arg changes
         self.apply_editor_style()
         self._setup_ui()
 
@@ -929,7 +930,8 @@ class OperationEditor(QWidget, EditorStyleMixin):
         
         self._refresh_args_list()
         self.args_list.setCurrentRow(len(self.operation.arguments) - 1)
-        self.changed.emit()
+        # Mark as modified but don't refresh tree (args aren't shown in tree)
+        self._emit_change_no_tree_refresh()
 
     def _remove_argument(self):
         """Remove the selected argument."""
@@ -937,7 +939,7 @@ class OperationEditor(QWidget, EditorStyleMixin):
         if row >= 0 and self.operation and row < len(self.operation.arguments):
             del self.operation.arguments[row]
             self._refresh_args_list()
-            self.changed.emit()
+            self._emit_change_no_tree_refresh()
 
     def _move_arg_up(self):
         """Move selected argument up."""
@@ -947,7 +949,7 @@ class OperationEditor(QWidget, EditorStyleMixin):
                 self.operation.arguments[row-1], self.operation.arguments[row]
             self._refresh_args_list()
             self.args_list.setCurrentRow(row - 1)
-            self.changed.emit()
+            self._emit_change_no_tree_refresh()
 
     def _move_arg_down(self):
         """Move selected argument down."""
@@ -957,7 +959,16 @@ class OperationEditor(QWidget, EditorStyleMixin):
                 self.operation.arguments[row+1], self.operation.arguments[row]
             self._refresh_args_list()
             self.args_list.setCurrentRow(row + 1)
-            self.changed.emit()
+            self._emit_change_no_tree_refresh()
+
+    def _emit_change_no_tree_refresh(self):
+        """Emit change signal in a way that marks modified but doesn't refresh tree."""
+        # We'll emit a special signal that main window can handle differently
+        # For now, we just need to mark the project as modified
+        # The changed signal will be caught but we set a flag
+        self._skip_tree_refresh = True
+        self.changed.emit()
+        self._skip_tree_refresh = False
 
     def _on_arg_name_changed(self, text):
         if self._updating:
@@ -965,8 +976,12 @@ class OperationEditor(QWidget, EditorStyleMixin):
         row = self.args_list.currentRow()
         if row >= 0 and self.operation and row < len(self.operation.arguments):
             self.operation.arguments[row].name = text
-            self._refresh_args_list()
-            self.changed.emit()
+            # Update list display without losing selection
+            self._updating = True
+            dir_str = {"in": "→", "out": "←", "inout": "↔"}[self.operation.arguments[row].direction.value]
+            self.args_list.item(row).setText(f"{dir_str} {text}: {self.operation.arguments[row].base_type.value}")
+            self._updating = False
+            self._emit_change_no_tree_refresh()
 
     def _on_arg_type_changed(self, index):
         if self._updating:
@@ -974,8 +989,13 @@ class OperationEditor(QWidget, EditorStyleMixin):
         row = self.args_list.currentRow()
         if row >= 0 and self.operation and row < len(self.operation.arguments):
             self.operation.arguments[row].base_type = self.arg_type_combo.currentData()
-            self._refresh_args_list()
-            self.changed.emit()
+            # Update list display without losing selection
+            self._updating = True
+            arg = self.operation.arguments[row]
+            dir_str = {"in": "→", "out": "←", "inout": "↔"}[arg.direction.value]
+            self.args_list.item(row).setText(f"{dir_str} {arg.name}: {arg.base_type.value}")
+            self._updating = False
+            self._emit_change_no_tree_refresh()
 
     def _on_arg_dir_changed(self, index):
         if self._updating:
@@ -983,8 +1003,13 @@ class OperationEditor(QWidget, EditorStyleMixin):
         row = self.args_list.currentRow()
         if row >= 0 and self.operation and row < len(self.operation.arguments):
             self.operation.arguments[row].direction = self.arg_dir_combo.currentData()
-            self._refresh_args_list()
-            self.changed.emit()
+            # Update list display without losing selection
+            self._updating = True
+            arg = self.operation.arguments[row]
+            dir_str = {"in": "→", "out": "←", "inout": "↔"}[arg.direction.value]
+            self.args_list.item(row).setText(f"{dir_str} {arg.name}: {arg.base_type.value}")
+            self._updating = False
+            self._emit_change_no_tree_refresh()
 
     def _on_name_changed(self, text):
         if not self._updating and self.operation:
