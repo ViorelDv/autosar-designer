@@ -6,6 +6,10 @@ from .editors import (
     ConnectionEditor
 )
 from .dialogs import ConnectionDialog
+from .composition_view import (
+    CompositionWidget, CompositionView, CompositionScene,
+    SwcGraphicsItem, PortGraphicsItem, ConnectionGraphicsItem
+)
 
 __all__ = [
     "MainWindow",
@@ -22,4 +26,10 @@ __all__ = [
     "CompuMethodEditor",
     "ConnectionEditor",
     "ConnectionDialog",
+    "CompositionWidget",
+    "CompositionView",
+    "CompositionScene",
+    "SwcGraphicsItem",
+    "PortGraphicsItem",
+    "ConnectionGraphicsItem",
 ]

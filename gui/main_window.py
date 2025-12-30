@@ -7,7 +7,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QSplitter, QTreeWidget, QTreeWidgetItem, QStackedWidget,
     QToolBar, QStatusBar, QFileDialog, QMessageBox, QMenu,
-    QLabel, QPushButton, QStyle
+    QLabel, QPushButton, QStyle, QTabWidget
 )
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QAction, QIcon, QFont
@@ -17,7 +17,8 @@ from model import (
     DataElement, Operation, OperationArgument, InterfaceType, PortDirection, 
     BaseDataType, ApplicationDataType, ImplementationDataType, CompuMethod,
     DataTypeMapping, AppDataCategory, ArgumentDirection, PortConnection,
-    save_project, load_project, create_example_project
+    save_project, load_project, create_example_project,
+    MultiFileProject
 )
 from codegen import generate_project_code
 from gui.editors import (
@@ -26,6 +27,7 @@ from gui.editors import (
     AppDataTypeEditor, ImplDataTypeEditor, CompuMethodEditor,
     ConnectionEditor
 )
+from gui.composition_view import CompositionWidget
 
 
 class ProjectTreeWidget(QTreeWidget):
@@ -211,14 +213,43 @@ class MainWindow(QMainWindow):
         self.tree.itemSelectionChanged.connect(self._on_selection_changed)
         splitter.addWidget(self.tree)
 
-        # Right panel: Stacked editors
+        # Right panel: Tabs for Editor and Composition View
+        self.right_tabs = QTabWidget()
+        self.right_tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: none;
+                background-color: #1e1e1e;
+            }
+            QTabBar::tab {
+                background-color: #2d2d30;
+                color: #808080;
+                padding: 8px 20px;
+                border: none;
+                border-bottom: 2px solid transparent;
+            }
+            QTabBar::tab:selected {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                border-bottom: 2px solid #007acc;
+            }
+            QTabBar::tab:hover {
+                background-color: #3e3e42;
+            }
+        """)
+        splitter.addWidget(self.right_tabs)
+
+        # Tab 1: Property Editor
         self.editor_stack = QStackedWidget()
         self.editor_stack.setStyleSheet("""
             QStackedWidget {
                 background-color: #1e1e1e;
             }
         """)
-        splitter.addWidget(self.editor_stack)
+        self.right_tabs.addTab(self.editor_stack, "📝 Properties")
+
+        # Tab 2: Composition View (Graphical)
+        self.composition_view = CompositionWidget()
+        self.right_tabs.addTab(self.composition_view, "📊 Composition Diagram")
 
         # Add editors
         self.welcome_panel = WelcomePanel()
@@ -497,6 +528,9 @@ class MainWindow(QMainWindow):
         ifaces_folder.setExpanded(True)
         comps_folder.setExpanded(True)
         conns_folder.setExpanded(True)
+        
+        # Also refresh composition view
+        self._refresh_composition_view()
 
     def _on_selection_changed(self):
         """Handle tree selection change."""
@@ -548,6 +582,11 @@ class MainWindow(QMainWindow):
         self._modified = True
         self._update_title()
         self._refresh_tree()
+        self._refresh_composition_view()
+
+    def _refresh_composition_view(self):
+        """Refresh the graphical composition view."""
+        self.composition_view.load_project(self.project)
 
     def _update_title(self):
         """Update window title."""
