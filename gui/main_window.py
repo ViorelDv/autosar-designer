@@ -403,8 +403,19 @@ class MainWindow(QMainWindow):
         about = help_menu.addAction("About")
         about.triggered.connect(self._show_about)
 
-    def _refresh_tree(self):
+    def _refresh_tree(self, preserve_selection=True):
         """Refresh the project tree."""
+        # Save current selection
+        selected_uid = None
+        selected_type = None
+        if preserve_selection:
+            items = self.tree.selectedItems()
+            if items:
+                obj = items[0].data(0, Qt.ItemDataRole.UserRole)
+                selected_type = items[0].data(0, Qt.ItemDataRole.UserRole + 1)
+                if obj and hasattr(obj, 'uid'):
+                    selected_uid = obj.uid
+        
         self.tree.clear()
 
         # Project root
@@ -539,8 +550,72 @@ class MainWindow(QMainWindow):
         comps_folder.setExpanded(True)
         conns_folder.setExpanded(True)
         
+        # Restore selection if we had one
+        if selected_uid and preserve_selection:
+            self._select_item_by_uid(selected_uid, selected_type)
+        
         # Also refresh composition view
         self._refresh_composition_view()
+
+    def _select_item_by_uid(self, uid: str, item_type: str = None):
+        """Find and select a tree item by its object's UID."""
+        def find_item(parent_item):
+            for i in range(parent_item.childCount()):
+                child = parent_item.child(i)
+                obj = child.data(0, Qt.ItemDataRole.UserRole)
+                if obj and hasattr(obj, 'uid') and obj.uid == uid:
+                    return child
+                # Recurse into children
+                found = find_item(child)
+                if found:
+                    return found
+            return None
+        
+        # Search from root
+        for i in range(self.tree.topLevelItemCount()):
+            root = self.tree.topLevelItem(i)
+            obj = root.data(0, Qt.ItemDataRole.UserRole)
+            if obj and hasattr(obj, 'uid') and obj.uid == uid:
+                self.tree.setCurrentItem(root)
+                return
+            found = find_item(root)
+            if found:
+                # Block signals to prevent triggering selection change handler
+                self.tree.blockSignals(True)
+                self.tree.setCurrentItem(found)
+                self.tree.blockSignals(False)
+                return
+
+    def _select_and_edit_item(self, uid: str):
+        """Find, select, and show editor for a tree item by its UID."""
+        def find_item(parent_item):
+            for i in range(parent_item.childCount()):
+                child = parent_item.child(i)
+                obj = child.data(0, Qt.ItemDataRole.UserRole)
+                if obj and hasattr(obj, 'uid') and obj.uid == uid:
+                    return child
+                found = find_item(child)
+                if found:
+                    return found
+            return None
+        
+        # Search from root
+        for i in range(self.tree.topLevelItemCount()):
+            root = self.tree.topLevelItem(i)
+            obj = root.data(0, Qt.ItemDataRole.UserRole)
+            if obj and hasattr(obj, 'uid') and obj.uid == uid:
+                self.tree.setCurrentItem(root)
+                return
+            found = find_item(root)
+            if found:
+                # Select the item (this will trigger _on_selection_changed)
+                self.tree.setCurrentItem(found)
+                # Expand parent to make sure it's visible
+                parent = found.parent()
+                while parent:
+                    parent.setExpanded(True)
+                    parent = parent.parent()
+                return
 
     def _on_selection_changed(self):
         """Handle tree selection change."""
@@ -695,7 +770,8 @@ class MainWindow(QMainWindow):
         swc = SoftwareComponent(name=name)
         self.project.components.append(swc)
         self._modified = True
-        self._refresh_tree()
+        self._refresh_tree(preserve_selection=False)
+        self._select_and_edit_item(swc.uid)
         self._update_title()
         self.statusBar().showMessage(f"Added component: {name}")
 
@@ -705,7 +781,8 @@ class MainWindow(QMainWindow):
         iface = Interface(name=name)
         self.project.interfaces.append(iface)
         self._modified = True
-        self._refresh_tree()
+        self._refresh_tree(preserve_selection=False)
+        self._select_and_edit_item(iface.uid)
         self._update_title()
         self.statusBar().showMessage(f"Added interface: {name}")
 
@@ -716,7 +793,8 @@ class MainWindow(QMainWindow):
         port = Port(name=name)
         swc.ports.append(port)
         self._modified = True
-        self._refresh_tree()
+        self._refresh_tree(preserve_selection=False)
+        self._select_and_edit_item(port.uid)
         self._update_title()
 
     def _add_runnable(self, swc_item: QTreeWidgetItem):
@@ -726,7 +804,8 @@ class MainWindow(QMainWindow):
         runnable = Runnable(name=name)
         swc.runnables.append(runnable)
         self._modified = True
-        self._refresh_tree()
+        self._refresh_tree(preserve_selection=False)
+        self._select_and_edit_item(runnable.uid)
         self._update_title()
 
     def _add_data_element(self, iface_item: QTreeWidgetItem):
@@ -736,7 +815,8 @@ class MainWindow(QMainWindow):
         de = DataElement(name=name)
         iface.data_elements.append(de)
         self._modified = True
-        self._refresh_tree()
+        self._refresh_tree(preserve_selection=False)
+        self._select_and_edit_item(de.uid)
         self._update_title()
 
     def _add_operation(self, iface_item: QTreeWidgetItem):
@@ -746,7 +826,8 @@ class MainWindow(QMainWindow):
         op = Operation(name=name)
         iface.operations.append(op)
         self._modified = True
-        self._refresh_tree()
+        self._refresh_tree(preserve_selection=False)
+        self._select_and_edit_item(op.uid)
         self._update_title()
 
     def _add_app_data_type(self):
@@ -755,7 +836,8 @@ class MainWindow(QMainWindow):
         adt = ApplicationDataType(name=name)
         self.project.application_data_types.append(adt)
         self._modified = True
-        self._refresh_tree()
+        self._refresh_tree(preserve_selection=False)
+        self._select_and_edit_item(adt.uid)
         self._update_title()
         self.statusBar().showMessage(f"Added application type: {name}")
 
@@ -765,7 +847,8 @@ class MainWindow(QMainWindow):
         idt = ImplementationDataType(name=name)
         self.project.implementation_data_types.append(idt)
         self._modified = True
-        self._refresh_tree()
+        self._refresh_tree(preserve_selection=False)
+        self._select_and_edit_item(idt.uid)
         self._update_title()
         self.statusBar().showMessage(f"Added implementation type: {name}")
 
@@ -775,7 +858,8 @@ class MainWindow(QMainWindow):
         cm = CompuMethod(name=name)
         self.project.compu_methods.append(cm)
         self._modified = True
-        self._refresh_tree()
+        self._refresh_tree(preserve_selection=False)
+        self._select_and_edit_item(cm.uid)
         self._update_title()
         self.statusBar().showMessage(f"Added CompuMethod: {name}")
 
@@ -788,7 +872,8 @@ class MainWindow(QMainWindow):
             if conn:
                 self.project.connections.append(conn)
                 self._modified = True
-                self._refresh_tree()
+                self._refresh_tree(preserve_selection=False)
+                self._select_and_edit_item(conn.uid)
                 self._update_title()
                 self.statusBar().showMessage(f"Added connection: {conn.name}")
 
