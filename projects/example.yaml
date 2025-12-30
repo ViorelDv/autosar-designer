@@ -1,0 +1,74 @@
+name: Example Automotive Project
+description: A sample project demonstrating AUTOSAR-like configuration
+interfaces:
+- name: If_VehicleSpeed
+  interface_type: sender_receiver
+  data_elements:
+  - name: VehicleSpeed
+    data_type: uint16
+    init_value: '0'
+    description: Vehicle speed in km/h * 100
+    uid: 1bcfde88
+  - name: SpeedValid
+    data_type: boolean
+    init_value: 'false'
+    description: Speed validity flag
+    uid: a5601b37
+  operations: []
+  description: Vehicle speed data interface
+  uid: c518c9ad
+- name: If_DiagService
+  interface_type: client_server
+  data_elements: []
+  operations:
+  - name: ReadDataById
+    return_type: uint8
+    arguments:
+    - name: dataId
+      type: uint16
+      direction: in
+    - name: data
+      type: uint8
+      direction: out
+    description: Read diagnostic data by ID
+    uid: ebae175d
+  description: Diagnostic service interface
+  uid: 859e311c
+components:
+- name: Swc_SpeedSensor
+  ports:
+  - name: Pp_VehicleSpeed
+    direction: provided
+    interface_uid: c518c9ad
+    description: Provides vehicle speed
+    uid: 054345f5
+  runnables:
+  - name: Run_ReadSpeed
+    period_ms: 10
+    description: Read speed sensor every 10ms
+    uid: a9f9579d
+  description: Speed sensor software component
+  uid: 0d08cfde
+- name: Swc_SpeedMonitor
+  ports:
+  - name: Rp_VehicleSpeed
+    direction: required
+    interface_uid: c518c9ad
+    description: Receives vehicle speed
+    uid: b2526efa
+  - name: Ps_DiagService
+    direction: provided
+    interface_uid: 859e311c
+    description: Provides diagnostic services
+    uid: b5be21b8
+  runnables:
+  - name: Run_MonitorSpeed
+    period_ms: 20
+    description: Monitor speed every 20ms
+    uid: 5d5c56e8
+  - name: Run_DiagHandler
+    period_ms: 0
+    description: Event-triggered diagnostic handler
+    uid: c56e3757
+  description: Speed monitoring component
+  uid: 14c56574
