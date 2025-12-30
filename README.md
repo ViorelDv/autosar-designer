@@ -5,9 +5,12 @@ A lightweight DaVinci Developer-like tool for designing AUTOSAR-style software c
 ## Features
 
 - **Visual Component Design**: Create and configure Software Components (SWCs), Interfaces, Ports, and Runnables
+- **Full Data Type Hierarchy**: Application Types, Implementation Types, CompuMethods, Type Mappings
+- **Port Connections**: Connect provided ↔ required ports with matching interfaces
+- **Multi-File Projects**: Split your project across multiple YAML modules (like ARXML packages)
 - **Tree-based Navigation**: Browse project structure with intuitive icons and context menus
 - **YAML Persistence**: Human-readable project files
-- **Code Generation**: Generate C skeleton code with Jinja2 templates
+- **Code Generation**: Jinja2-based C code generation
 - **Dark Theme**: Modern VS Code-inspired interface
 
 ## Installation
@@ -35,23 +38,115 @@ python main.py
 3. Right-click to add/delete elements
 4. Press **F5** or click **Generate Code** to generate C code
 
-### Project Structure
+## Project Structure
+
+### Single-File Project
+
+```yaml
+name: My Project
+compu_methods: [...]
+application_data_types: [...]
+implementation_data_types: [...]
+data_type_mappings: [...]
+interfaces: [...]
+components: [...]
+connections: [...]
+```
+
+### Multi-File Project
+
+For larger projects, split your configuration across multiple files:
 
 ```
-📁 Project
-├── 📂 Interfaces
-│   ├── 🔗 Sender/Receiver Interfaces
-│   │   └── 📊 Data Elements
-│   └── ⚡ Client/Server Interfaces
-│       └── ⚙️ Operations
-└── 📂 Software Components
-    ├── 📦 SWC 1
-    │   ├── ◀ Required Ports
-    │   ├── ▶ Provided Ports
-    │   └── ▷ Runnables
-    └── 📦 SWC 2
-        └── ...
+project/
+├── master.yaml              # Master project file
+└── modules/
+    ├── datatypes.yaml       # Shared data types & scaling
+    ├── interfaces.yaml      # Shared interfaces
+    ├── swc_sensor.yaml      # Sensor component
+    ├── swc_monitor.yaml     # Monitor component
+    └── swc_actuator.yaml    # Actuator component
 ```
+
+**master.yaml:**
+```yaml
+name: Multi-Module Project
+modules:
+  - path: modules/datatypes.yaml
+    name: DataTypes
+    enabled: true
+  - path: modules/interfaces.yaml
+    name: Interfaces
+    enabled: true
+  - path: modules/swc_sensor.yaml
+    name: Swc_SpeedSensor
+    enabled: true
+global_connections:
+  - name: Conn_Speed
+    provider_swc_uid: abc123
+    provider_port_uid: def456
+    requester_swc_uid: ghi789
+    requester_port_uid: jkl012
+```
+
+**modules/interfaces.yaml:**
+```yaml
+name: Interfaces
+interfaces:
+  - name: If_VehicleSpeed
+    interface_type: sender_receiver
+    data_elements:
+      - name: Speed
+        app_type_uid: xyz789  # References type from datatypes.yaml
+```
+
+**modules/swc_sensor.yaml:**
+```yaml
+name: Swc_SpeedSensor
+components:
+  - name: Swc_SpeedSensor
+    ports:
+      - name: Pp_Speed
+        direction: provided
+        interface_uid: abc123  # References interface from interfaces.yaml
+```
+
+### Key Benefits of Multi-File
+
+| Benefit | Description |
+|---------|-------------|
+| **Modularity** | Each team can own their module |
+| **Reusability** | Share interfaces/types across projects |
+| **Version Control** | Better diffs, less merge conflicts |
+| **Cross-Module Connections** | Connect ports from different modules |
+
+## Data Type Hierarchy
+
+```
+📂 Data Types
+├── 📐 CompuMethod         # Scaling: physical = internal × factor + offset
+│   └── CM_VehicleSpeed    # factor=0.01, unit=km/h
+├── 🔷 Application Type    # Abstract/logical type
+│   └── VehicleSpeed_T     # Uses CM_VehicleSpeed, range 0-65535
+└── 🔶 Implementation Type # Platform-specific C type
+    └── Impl_uint16        # Maps to uint16
+```
+
+## Port Connections
+
+Connect ports that share the same interface:
+
+```
+📦 Swc_SpeedSensor
+└── ▶ Pp_VehicleSpeed [If_VehicleSpeed] 🔌
+                ↓
+📦 Swc_SpeedMonitor  
+└── ◀ Rp_VehicleSpeed [If_VehicleSpeed] 🔌
+```
+
+**Creating connections:**
+- Right-click a PROVIDED port → "Connect to Required Port..."
+- Or use toolbar → "+ Connection"
 
 ## Generated Code
 
@@ -75,29 +170,6 @@ Generated `.c` files include preserved sections:
 /* USER CODE END Includes */
 ```
 
-## YAML Project Format
-
-```yaml
-name: My Project
-description: Example automotive project
-interfaces:
-  - name: If_VehicleSpeed
-    interface_type: sender_receiver
-    data_elements:
-      - name: VehicleSpeed
-        data_type: uint16
-        init_value: "0"
-components:
-  - name: Swc_SpeedSensor
-    ports:
-      - name: Pp_Speed
-        direction: provided
-        interface_uid: abc12345
-    runnables:
-      - name: Run_ReadSpeed
-        period_ms: 10
-```
-
 ## Customizing Templates
 
 Templates are in `codegen/templates/`. Modify them to match your coding standards:
@@ -108,11 +180,37 @@ Templates are in `codegen/templates/`. Modify them to match your coding standard
 - `std_types.h.j2` - Standard types
 - `rte_type.h.j2` - Interface types
 
+## API Usage
+
+```python
+from model import (
+    MultiFileProject, 
+    create_example_multifile_project,
+    save_multifile_project
+)
+from pathlib import Path
+
+# Create multi-file project
+project = create_example_multifile_project(Path("my_project"))
+save_multifile_project(project)
+
+# Load and merge
+project = MultiFileProject()
+project.load_master(Path("my_project/master.yaml"))
+merged = project.get_merged_project()  # Unified view
+
+# Find which module contains an element
+module_name = project.find_element_module(some_uid)
+```
+
 ## Roadmap
 
+- [x] Multi-file project support
+- [x] Port connections
+- [x] Full data type hierarchy
 - [ ] Graphical SWC composition diagram
 - [ ] Drag-and-drop port connections
-- [ ] Operation argument editor
+- [ ] Operation argument editor in GUI
 - [ ] ARXML import/export
 - [ ] Copy/paste elements
 - [ ] Undo/redo

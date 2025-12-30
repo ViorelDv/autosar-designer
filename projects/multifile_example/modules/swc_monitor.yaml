@@ -1,0 +1,23 @@
+name: Swc_SpeedMonitor
+description: Speed monitoring software component
+compu_methods: []
+application_data_types: []
+implementation_data_types: []
+data_type_mappings: []
+interfaces: []
+components:
+- name: Swc_SpeedMonitor
+  ports:
+  - name: Rp_VehicleSpeed
+    direction: required
+    interface_uid: 9774c6cc
+    description: ''
+    uid: 7adcbaf4
+  runnables:
+  - name: Run_MonitorSpeed
+    period_ms: 20
+    description: ''
+    uid: 2d06ba61
+  description: Monitors vehicle speed
+  uid: 6a9ec2dd
+connections: []

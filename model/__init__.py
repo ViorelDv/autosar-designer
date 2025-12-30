@@ -26,6 +26,14 @@ from .elements import (
     Project,
 )
 from .project_io import save_project, load_project, create_example_project
+from .multifile import (
+    ModuleReference,
+    MasterProject,
+    Module,
+    MultiFileProject,
+    create_example_multifile_project,
+    save_multifile_project,
+)
 
 __all__ = [
     # Enums
@@ -57,4 +65,11 @@ __all__ = [
     "save_project",
     "load_project",
     "create_example_project",
+    # Multi-file
+    "ModuleReference",
+    "MasterProject",
+    "Module",
+    "MultiFileProject",
+    "create_example_multifile_project",
+    "save_multifile_project",
 ]

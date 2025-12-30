@@ -1,0 +1,21 @@
+name: Interfaces
+description: Shared interface definitions
+compu_methods: []
+application_data_types: []
+implementation_data_types: []
+data_type_mappings: []
+interfaces:
+- name: If_VehicleSpeed
+  interface_type: sender_receiver
+  data_elements:
+  - name: VehicleSpeed
+    app_type_uid: 84dcd79e
+    base_type: uint16
+    init_value: '0'
+    description: ''
+    uid: c497cd96
+  operations: []
+  description: ''
+  uid: 9774c6cc
+components: []
+connections: []

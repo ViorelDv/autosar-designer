@@ -1,0 +1,38 @@
+name: DataTypes
+description: Shared data types and scaling definitions
+compu_methods:
+- name: CM_VehicleSpeed
+  factor: 0.01
+  offset: 0.0
+  unit: km/h
+  description: ''
+  uid: 8dd69205
+application_data_types:
+- name: VehicleSpeed_T
+  category: value
+  compu_method_uid: 8dd69205
+  min_value: 0.0
+  max_value: 65535.0
+  init_value: '0'
+  description: ''
+  array_size: 1
+  element_type_uid: null
+  struct_members: []
+  enum_literals: []
+  uid: 84dcd79e
+implementation_data_types:
+- name: Impl_uint16
+  base_type: uint16
+  is_array: false
+  array_size: 1
+  is_struct: false
+  struct_members: []
+  description: ''
+  uid: 1bfff011
+data_type_mappings:
+- app_type_uid: 84dcd79e
+  impl_type_uid: 1bfff011
+  uid: 88a528b0
+interfaces: []
+components: []
+connections: []

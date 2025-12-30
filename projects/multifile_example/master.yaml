@@ -1,0 +1,27 @@
+name: Multi-Module Automotive Project
+description: Example project split across multiple YAML files
+modules:
+- path: modules/datatypes.yaml
+  name: DataTypes
+  description: Shared data types and scaling definitions
+  enabled: true
+- path: modules/interfaces.yaml
+  name: Interfaces
+  description: Shared interface definitions
+  enabled: true
+- path: modules/swc_sensor.yaml
+  name: Swc_SpeedSensor
+  description: Speed sensor software component
+  enabled: true
+- path: modules/swc_monitor.yaml
+  name: Swc_SpeedMonitor
+  description: Speed monitoring software component
+  enabled: true
+global_connections:
+- name: Conn_VehicleSpeed
+  provider_swc_uid: dfdf4c98
+  provider_port_uid: d3c366f8
+  requester_swc_uid: 6a9ec2dd
+  requester_port_uid: 7adcbaf4
+  description: 'Cross-module connection: Sensor -> Monitor'
+  uid: 437fa114

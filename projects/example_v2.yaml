@@ -11,7 +11,7 @@ compu_methods:
 - name: CM_Temperature
   factor: 0.1
   offset: -40.0
-  unit: �C
+  unit: °C
   description: 'Temperature scaling: -40 to +215 °C'
   uid: cd0d47dc
 application_data_types:
@@ -152,18 +152,6 @@ interfaces:
     uid: 9ab5e176
   description: Diagnostic service interface
   uid: df2f2b52
-- name: If_New3
-  interface_type: client_server
-  data_elements: []
-  operations: []
-  description: ''
-  uid: 36ef8f3c
-- name: If_New4
-  interface_type: client_server
-  data_elements: []
-  operations: []
-  description: ''
-  uid: 7850376f
 components:
 - name: Swc_SpeedSensor
   ports:

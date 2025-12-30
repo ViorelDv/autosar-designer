@@ -1,0 +1,23 @@
+name: Swc_SpeedSensor
+description: Speed sensor software component
+compu_methods: []
+application_data_types: []
+implementation_data_types: []
+data_type_mappings: []
+interfaces: []
+components:
+- name: Swc_SpeedSensor
+  ports:
+  - name: Pp_VehicleSpeed
+    direction: provided
+    interface_uid: 9774c6cc
+    description: ''
+    uid: d3c366f8
+  runnables:
+  - name: Run_ReadSpeed
+    period_ms: 10
+    description: ''
+    uid: 3ad8dfba
+  description: Reads vehicle speed from sensor
+  uid: dfdf4c98
+connections: []
