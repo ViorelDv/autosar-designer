@@ -14,13 +14,17 @@ from PyQt6.QtGui import QAction, QIcon, QFont
 
 from model import (
     Project, SoftwareComponent, Interface, Port, Runnable,
-    DataElement, Operation, InterfaceType, PortDirection, DataType,
+    DataElement, Operation, OperationArgument, InterfaceType, PortDirection, 
+    BaseDataType, ApplicationDataType, ImplementationDataType, CompuMethod,
+    DataTypeMapping, AppDataCategory, ArgumentDirection, PortConnection,
     save_project, load_project, create_example_project
 )
 from codegen import generate_project_code
 from gui.editors import (
     WelcomePanel, SwcEditor, InterfaceEditor, PortEditor,
-    RunnableEditor, DataElementEditor, OperationEditor
+    RunnableEditor, DataElementEditor, OperationEditor,
+    AppDataTypeEditor, ImplDataTypeEditor, CompuMethodEditor,
+    ConnectionEditor
 )
 
 
@@ -88,7 +92,17 @@ class ProjectTreeWidget(QTreeWidget):
                 delete = menu.addAction("Delete Interface")
                 delete.triggered.connect(lambda: self.parent().parent()._delete_item(item))
             
-            elif item_type in ("port", "runnable", "data_element", "operation"):
+            elif item_type in ("port", "runnable", "data_element", "operation", 
+                               "app_data_type", "impl_data_type", "compu_method", "connection"):
+                # For ports, also offer connection creation
+                if item_type == "port":
+                    port = item.data(0, Qt.ItemDataRole.UserRole)
+                    swc = item.data(0, Qt.ItemDataRole.UserRole + 2)
+                    if port.direction == PortDirection.PROVIDED:
+                        connect_action = menu.addAction("Connect to Required Port...")
+                        connect_action.triggered.connect(
+                            lambda: self.parent().parent()._create_connection_from_port(swc, port))
+                        menu.addSeparator()
                 delete = menu.addAction("Delete")
                 delete.triggered.connect(lambda: self.parent().parent()._delete_item(item))
             
@@ -99,6 +113,22 @@ class ProjectTreeWidget(QTreeWidget):
             elif item_type == "interfaces_folder":
                 add_iface = menu.addAction("Add Interface")
                 add_iface.triggered.connect(lambda: self.parent().parent()._add_interface())
+
+            elif item_type == "connections_folder":
+                add_conn = menu.addAction("Add Connection...")
+                add_conn.triggered.connect(lambda: self.parent().parent()._add_connection())
+
+            elif item_type == "app_types_folder":
+                add_adt = menu.addAction("Add Application Data Type")
+                add_adt.triggered.connect(lambda: self.parent().parent()._add_app_data_type())
+
+            elif item_type == "impl_types_folder":
+                add_idt = menu.addAction("Add Implementation Data Type")
+                add_idt.triggered.connect(lambda: self.parent().parent()._add_impl_data_type())
+
+            elif item_type == "compu_methods_folder":
+                add_cm = menu.addAction("Add CompuMethod")
+                add_cm.triggered.connect(lambda: self.parent().parent()._add_compu_method())
 
         menu.exec(self.mapToGlobal(position))
 
@@ -198,6 +228,10 @@ class MainWindow(QMainWindow):
         self.runnable_editor = RunnableEditor()
         self.data_element_editor = DataElementEditor()
         self.operation_editor = OperationEditor()
+        self.app_type_editor = AppDataTypeEditor()
+        self.impl_type_editor = ImplDataTypeEditor()
+        self.compu_method_editor = CompuMethodEditor()
+        self.connection_editor = ConnectionEditor()
 
         self.editor_stack.addWidget(self.welcome_panel)       # 0
         self.editor_stack.addWidget(self.swc_editor)          # 1
@@ -206,6 +240,10 @@ class MainWindow(QMainWindow):
         self.editor_stack.addWidget(self.runnable_editor)     # 4
         self.editor_stack.addWidget(self.data_element_editor) # 5
         self.editor_stack.addWidget(self.operation_editor)    # 6
+        self.editor_stack.addWidget(self.app_type_editor)     # 7
+        self.editor_stack.addWidget(self.impl_type_editor)    # 8
+        self.editor_stack.addWidget(self.compu_method_editor) # 9
+        self.editor_stack.addWidget(self.connection_editor)   # 10
 
         # Connect editor signals
         self.swc_editor.changed.connect(self._on_editor_changed)
@@ -214,6 +252,10 @@ class MainWindow(QMainWindow):
         self.runnable_editor.changed.connect(self._on_editor_changed)
         self.data_element_editor.changed.connect(self._on_editor_changed)
         self.operation_editor.changed.connect(self._on_editor_changed)
+        self.app_type_editor.changed.connect(self._on_editor_changed)
+        self.impl_type_editor.changed.connect(self._on_editor_changed)
+        self.compu_method_editor.changed.connect(self._on_editor_changed)
+        self.connection_editor.changed.connect(self._on_editor_changed)
 
         splitter.setSizes([300, 900])
 
@@ -255,6 +297,11 @@ class MainWindow(QMainWindow):
         add_iface_action = QAction("+ Interface", self)
         add_iface_action.triggered.connect(self._add_interface)
         toolbar.addAction(add_iface_action)
+
+        # Add Connection
+        add_conn_action = QAction("+ Connection", self)
+        add_conn_action.triggered.connect(self._add_connection)
+        toolbar.addAction(add_conn_action)
 
         toolbar.addSeparator()
 
@@ -332,7 +379,46 @@ class MainWindow(QMainWindow):
         root.setData(0, Qt.ItemDataRole.UserRole + 1, "project")
         self.tree.addTopLevelItem(root)
 
-        # Interfaces folder
+        # ==========================================================================
+        # DATA TYPES FOLDER
+        # ==========================================================================
+        types_folder = QTreeWidgetItem(["📂 Data Types"])
+        types_folder.setData(0, Qt.ItemDataRole.UserRole + 1, "types_folder")
+        root.addChild(types_folder)
+
+        # Compu Methods
+        compu_folder = QTreeWidgetItem(["📂 CompuMethods"])
+        compu_folder.setData(0, Qt.ItemDataRole.UserRole + 1, "compu_methods_folder")
+        types_folder.addChild(compu_folder)
+        for cm in self.project.compu_methods:
+            cm_item = QTreeWidgetItem([f"📐 {cm.name}"])
+            cm_item.setData(0, Qt.ItemDataRole.UserRole, cm)
+            cm_item.setData(0, Qt.ItemDataRole.UserRole + 1, "compu_method")
+            compu_folder.addChild(cm_item)
+
+        # Application Data Types
+        app_types_folder = QTreeWidgetItem(["📂 Application Types"])
+        app_types_folder.setData(0, Qt.ItemDataRole.UserRole + 1, "app_types_folder")
+        types_folder.addChild(app_types_folder)
+        for adt in self.project.application_data_types:
+            adt_item = QTreeWidgetItem([f"🔷 {adt.name}"])
+            adt_item.setData(0, Qt.ItemDataRole.UserRole, adt)
+            adt_item.setData(0, Qt.ItemDataRole.UserRole + 1, "app_data_type")
+            app_types_folder.addChild(adt_item)
+
+        # Implementation Data Types
+        impl_types_folder = QTreeWidgetItem(["📂 Implementation Types"])
+        impl_types_folder.setData(0, Qt.ItemDataRole.UserRole + 1, "impl_types_folder")
+        types_folder.addChild(impl_types_folder)
+        for idt in self.project.implementation_data_types:
+            idt_item = QTreeWidgetItem([f"🔶 {idt.name}"])
+            idt_item.setData(0, Qt.ItemDataRole.UserRole, idt)
+            idt_item.setData(0, Qt.ItemDataRole.UserRole + 1, "impl_data_type")
+            impl_types_folder.addChild(idt_item)
+
+        # ==========================================================================
+        # INTERFACES FOLDER
+        # ==========================================================================
         ifaces_folder = QTreeWidgetItem(["📂 Interfaces"])
         ifaces_folder.setData(0, Qt.ItemDataRole.UserRole + 1, "interfaces_folder")
         root.addChild(ifaces_folder)
@@ -359,7 +445,9 @@ class MainWindow(QMainWindow):
                     op_item.setData(0, Qt.ItemDataRole.UserRole + 2, iface)
                     iface_item.addChild(op_item)
 
-        # Components folder
+        # ==========================================================================
+        # COMPONENTS FOLDER
+        # ==========================================================================
         comps_folder = QTreeWidgetItem(["📂 Software Components"])
         comps_folder.setData(0, Qt.ItemDataRole.UserRole + 1, "components_folder")
         root.addChild(comps_folder)
@@ -373,7 +461,10 @@ class MainWindow(QMainWindow):
             # Ports
             for port in swc.ports:
                 icon = "◀" if port.direction == PortDirection.REQUIRED else "▶"
-                port_item = QTreeWidgetItem([f"  {icon} {port.name}"])
+                # Show connection status
+                connections = self.project.get_connections_for_port(port.uid)
+                conn_indicator = " 🔌" if connections else ""
+                port_item = QTreeWidgetItem([f"  {icon} {port.name}{conn_indicator}"])
                 port_item.setData(0, Qt.ItemDataRole.UserRole, port)
                 port_item.setData(0, Qt.ItemDataRole.UserRole + 1, "port")
                 port_item.setData(0, Qt.ItemDataRole.UserRole + 2, swc)
@@ -387,9 +478,25 @@ class MainWindow(QMainWindow):
                 run_item.setData(0, Qt.ItemDataRole.UserRole + 2, swc)
                 swc_item.addChild(run_item)
 
+        # ==========================================================================
+        # CONNECTIONS FOLDER
+        # ==========================================================================
+        conns_folder = QTreeWidgetItem(["📂 Connections"])
+        conns_folder.setData(0, Qt.ItemDataRole.UserRole + 1, "connections_folder")
+        root.addChild(conns_folder)
+
+        for conn in self.project.connections:
+            conn_item = QTreeWidgetItem([f"🔌 {conn.name}"])
+            conn_item.setData(0, Qt.ItemDataRole.UserRole, conn)
+            conn_item.setData(0, Qt.ItemDataRole.UserRole + 1, "connection")
+            conns_folder.addChild(conn_item)
+
+        # Expand main folders
         root.setExpanded(True)
+        types_folder.setExpanded(True)
         ifaces_folder.setExpanded(True)
         comps_folder.setExpanded(True)
+        conns_folder.setExpanded(True)
 
     def _on_selection_changed(self):
         """Handle tree selection change."""
@@ -410,17 +517,29 @@ class MainWindow(QMainWindow):
             self.editor_stack.setCurrentIndex(2)
         elif item_type == "port":
             swc = item.data(0, Qt.ItemDataRole.UserRole + 2)
-            self.port_editor.set_port(obj, self.project.interfaces)
+            self.port_editor.set_port(obj, self.project.interfaces, self.project)
             self.editor_stack.setCurrentIndex(3)
         elif item_type == "runnable":
             self.runnable_editor.set_runnable(obj)
             self.editor_stack.setCurrentIndex(4)
         elif item_type == "data_element":
-            self.data_element_editor.set_data_element(obj)
+            self.data_element_editor.set_data_element(obj, self.project.application_data_types)
             self.editor_stack.setCurrentIndex(5)
         elif item_type == "operation":
-            self.operation_editor.set_operation(obj)
+            self.operation_editor.set_operation(obj, self.project.application_data_types)
             self.editor_stack.setCurrentIndex(6)
+        elif item_type == "app_data_type":
+            self.app_type_editor.set_app_type(obj, self.project.compu_methods)
+            self.editor_stack.setCurrentIndex(7)
+        elif item_type == "impl_data_type":
+            self.impl_type_editor.set_impl_type(obj)
+            self.editor_stack.setCurrentIndex(8)
+        elif item_type == "compu_method":
+            self.compu_method_editor.set_compu_method(obj)
+            self.editor_stack.setCurrentIndex(9)
+        elif item_type == "connection":
+            self.connection_editor.set_connection(obj, self.project)
+            self.editor_stack.setCurrentIndex(10)
         else:
             self.editor_stack.setCurrentIndex(0)
 
@@ -580,6 +699,62 @@ class MainWindow(QMainWindow):
         self._refresh_tree()
         self._update_title()
 
+    def _add_app_data_type(self):
+        """Add a new application data type."""
+        name = f"AppType_{len(self.project.application_data_types) + 1}"
+        adt = ApplicationDataType(name=name)
+        self.project.application_data_types.append(adt)
+        self._modified = True
+        self._refresh_tree()
+        self._update_title()
+        self.statusBar().showMessage(f"Added application type: {name}")
+
+    def _add_impl_data_type(self):
+        """Add a new implementation data type."""
+        name = f"ImplType_{len(self.project.implementation_data_types) + 1}"
+        idt = ImplementationDataType(name=name)
+        self.project.implementation_data_types.append(idt)
+        self._modified = True
+        self._refresh_tree()
+        self._update_title()
+        self.statusBar().showMessage(f"Added implementation type: {name}")
+
+    def _add_compu_method(self):
+        """Add a new compu method."""
+        name = f"CM_{len(self.project.compu_methods) + 1}"
+        cm = CompuMethod(name=name)
+        self.project.compu_methods.append(cm)
+        self._modified = True
+        self._refresh_tree()
+        self._update_title()
+        self.statusBar().showMessage(f"Added CompuMethod: {name}")
+
+    def _add_connection(self):
+        """Add a new port connection via dialog."""
+        from gui.dialogs import ConnectionDialog
+        dialog = ConnectionDialog(self.project, self)
+        if dialog.exec():
+            conn = dialog.get_connection()
+            if conn:
+                self.project.connections.append(conn)
+                self._modified = True
+                self._refresh_tree()
+                self._update_title()
+                self.statusBar().showMessage(f"Added connection: {conn.name}")
+
+    def _create_connection_from_port(self, provider_swc: SoftwareComponent, provider_port: Port):
+        """Create a connection starting from a provided port."""
+        from gui.dialogs import ConnectionDialog
+        dialog = ConnectionDialog(self.project, self, provider_swc, provider_port)
+        if dialog.exec():
+            conn = dialog.get_connection()
+            if conn:
+                self.project.connections.append(conn)
+                self._modified = True
+                self._refresh_tree()
+                self._update_title()
+                self.statusBar().showMessage(f"Added connection: {conn.name}")
+
     def _delete_item(self, item: QTreeWidgetItem):
         """Delete a tree item."""
         item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
@@ -594,11 +769,22 @@ class MainWindow(QMainWindow):
             return
 
         if item_type == "swc":
+            # Also remove any connections involving this SWC's ports
+            ports_to_remove = [p.uid for p in obj.ports]
+            self.project.connections = [
+                c for c in self.project.connections
+                if c.provider_port_uid not in ports_to_remove and c.requester_port_uid not in ports_to_remove
+            ]
             self.project.components.remove(obj)
         elif item_type == "interface":
             self.project.interfaces.remove(obj)
         elif item_type == "port":
             parent_swc = item.data(0, Qt.ItemDataRole.UserRole + 2)
+            # Remove any connections involving this port
+            self.project.connections = [
+                c for c in self.project.connections
+                if c.provider_port_uid != obj.uid and c.requester_port_uid != obj.uid
+            ]
             parent_swc.ports.remove(obj)
         elif item_type == "runnable":
             parent_swc = item.data(0, Qt.ItemDataRole.UserRole + 2)
@@ -609,6 +795,14 @@ class MainWindow(QMainWindow):
         elif item_type == "operation":
             parent_iface = item.data(0, Qt.ItemDataRole.UserRole + 2)
             parent_iface.operations.remove(obj)
+        elif item_type == "app_data_type":
+            self.project.application_data_types.remove(obj)
+        elif item_type == "impl_data_type":
+            self.project.implementation_data_types.remove(obj)
+        elif item_type == "compu_method":
+            self.project.compu_methods.remove(obj)
+        elif item_type == "connection":
+            self.project.connections.remove(obj)
 
         self._modified = True
         self._refresh_tree()

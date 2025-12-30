@@ -1,0 +1,233 @@
+name: Example Automotive Project
+description: A sample project demonstrating AUTOSAR-like configuration with full data
+  type support
+compu_methods:
+- name: CM_VehicleSpeed
+  factor: 0.01
+  offset: 0.0
+  unit: km/h
+  description: 'Vehicle speed scaling: 0-655.35 km/h'
+  uid: 6282ff09
+- name: CM_Temperature
+  factor: 0.1
+  offset: -40.0
+  unit: °C
+  description: 'Temperature scaling: -40 to +215 Â°C'
+  uid: cd0d47dc
+application_data_types:
+- name: VehicleSpeed_T
+  category: value
+  compu_method_uid: 6282ff09
+  min_value: 0.0
+  max_value: 65535.0
+  init_value: '0'
+  description: Vehicle speed in km/h (physical), scaled by 100
+  array_size: 1
+  element_type_uid: null
+  struct_members: []
+  enum_literals: []
+  uid: 2a67789f
+- name: SpeedValid_T
+  category: value
+  compu_method_uid: null
+  min_value: 0
+  max_value: 1
+  init_value: '0'
+  description: Speed validity flag
+  array_size: 1
+  element_type_uid: null
+  struct_members: []
+  enum_literals: []
+  uid: 699577b9
+- name: DiagId_T
+  category: value
+  compu_method_uid: null
+  min_value: 0
+  max_value: 65535
+  init_value: '0'
+  description: Diagnostic data identifier
+  array_size: 1
+  element_type_uid: null
+  struct_members: []
+  enum_literals: []
+  uid: 78dc800a
+- name: DiagStatus_T
+  category: enum
+  compu_method_uid: null
+  min_value: null
+  max_value: null
+  init_value: '0'
+  description: Diagnostic operation status
+  array_size: 1
+  element_type_uid: null
+  struct_members: []
+  enum_literals:
+  - name: DIAG_OK
+    value: 0
+  - name: DIAG_PENDING
+    value: 1
+  - name: DIAG_NOT_SUPPORTED
+    value: 2
+  - name: DIAG_ERROR
+    value: 3
+  uid: 5c1162b6
+implementation_data_types:
+- name: Impl_uint16
+  base_type: uint16
+  is_array: false
+  array_size: 1
+  is_struct: false
+  struct_members: []
+  description: 16-bit unsigned integer
+  uid: b274a357
+- name: Impl_boolean
+  base_type: boolean
+  is_array: false
+  array_size: 1
+  is_struct: false
+  struct_members: []
+  description: Boolean type
+  uid: caca065a
+- name: Impl_uint8
+  base_type: uint8
+  is_array: false
+  array_size: 1
+  is_struct: false
+  struct_members: []
+  description: 8-bit unsigned integer
+  uid: fcefb233
+data_type_mappings:
+- app_type_uid: 2a67789f
+  impl_type_uid: b274a357
+  uid: 70c30654
+- app_type_uid: 699577b9
+  impl_type_uid: caca065a
+  uid: eeb1e533
+- app_type_uid: 78dc800a
+  impl_type_uid: b274a357
+  uid: ffdfc68a
+- app_type_uid: 5c1162b6
+  impl_type_uid: fcefb233
+  uid: 16c3e55a
+interfaces:
+- name: If_VehicleSpeed
+  interface_type: sender_receiver
+  data_elements:
+  - name: VehicleSpeed
+    app_type_uid: 2a67789f
+    base_type: uint16
+    init_value: '0'
+    description: Vehicle speed in km/h * 100
+    uid: 16c50500
+  - name: SpeedValid
+    app_type_uid: 699577b9
+    base_type: boolean
+    init_value: 'false'
+    description: Speed validity flag
+    uid: b22552b6
+  operations: []
+  description: Vehicle speed data interface
+  uid: 5f2169cf
+- name: If_DiagService
+  interface_type: client_server
+  data_elements: []
+  operations:
+  - name: ReadDataById
+    return_type_uid: 5c1162b6
+    return_base_type: uint8
+    arguments:
+    - name: dataId
+      direction: in
+      app_type_uid: 78dc800a
+      base_type: uint16
+      description: Data identifier to read
+      uid: f58a158c
+    - name: data
+      direction: out
+      app_type_uid: null
+      base_type: uint8
+      description: Output data buffer
+      uid: 7aaf6e76
+    description: Read diagnostic data by ID
+    uid: 9ab5e176
+  description: Diagnostic service interface
+  uid: df2f2b52
+- name: If_New3
+  interface_type: client_server
+  data_elements: []
+  operations: []
+  description: ''
+  uid: 36ef8f3c
+- name: If_New4
+  interface_type: client_server
+  data_elements: []
+  operations: []
+  description: ''
+  uid: 7850376f
+components:
+- name: Swc_SpeedSensor
+  ports:
+  - name: Pp_VehicleSpeed
+    direction: provided
+    interface_uid: 5f2169cf
+    description: Provides vehicle speed
+    uid: 0033d4f1
+  runnables:
+  - name: Run_ReadSpeed
+    period_ms: 10
+    description: Read speed sensor every 10ms
+    uid: 95069e43
+  description: Speed sensor software component
+  uid: 918739af
+- name: Swc_SpeedMonitor
+  ports:
+  - name: Rp_VehicleSpeed
+    direction: required
+    interface_uid: 5f2169cf
+    description: Receives vehicle speed
+    uid: 630ade4e
+  - name: Ps_DiagService
+    direction: provided
+    interface_uid: df2f2b52
+    description: Provides diagnostic services
+    uid: 36d931ae
+  runnables:
+  - name: Run_MonitorSpeed
+    period_ms: 20
+    description: Monitor speed every 20ms
+    uid: 304e0133
+  - name: Run_DiagHandler
+    period_ms: 0
+    description: Event-triggered diagnostic handler
+    uid: 83920bae
+  description: Speed monitoring component
+  uid: db9c6aae
+- name: Swc_DiagTester
+  ports:
+  - name: Rc_DiagService
+    direction: required
+    interface_uid: df2f2b52
+    description: Calls diagnostic services
+    uid: 0220aafa
+  runnables:
+  - name: Run_DiagRequest
+    period_ms: 100
+    description: Periodic diagnostic request
+    uid: d1e23c99
+  description: Diagnostic tester component (client)
+  uid: dff6b915
+connections:
+- name: Conn_VehicleSpeed
+  provider_swc_uid: 918739af
+  provider_port_uid: 0033d4f1
+  requester_swc_uid: db9c6aae
+  requester_port_uid: 630ade4e
+  description: Vehicle speed data connection
+  uid: 4c592598
+- name: Conn_DiagService
+  provider_swc_uid: db9c6aae
+  provider_port_uid: 36d931ae
+  requester_swc_uid: dff6b915
+  requester_port_uid: 0220aafa
+  description: Diagnostic service connection
+  uid: d37236d2
