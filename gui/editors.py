@@ -4,7 +4,8 @@ Property editors for project elements.
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QFormLayout, QLabel,
     QLineEdit, QTextEdit, QSpinBox, QComboBox, QPushButton,
-    QGroupBox, QFrame, QScrollArea, QSizePolicy, QDoubleSpinBox
+    QGroupBox, QFrame, QScrollArea, QSizePolicy, QDoubleSpinBox,
+    QListWidget
 )
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtGui import QFont
@@ -696,7 +697,7 @@ class DataElementEditor(QWidget, EditorStyleMixin):
 
 
 class OperationEditor(QWidget, EditorStyleMixin):
-    """Editor for Operations."""
+    """Editor for Operations with argument management."""
     
     changed = pyqtSignal()
 
@@ -730,7 +731,7 @@ class OperationEditor(QWidget, EditorStyleMixin):
         form.addRow("Return Type:", self.return_combo)
 
         self.desc_edit = QTextEdit()
-        self.desc_edit.setMaximumHeight(100)
+        self.desc_edit.setMaximumHeight(80)
         self.desc_edit.textChanged.connect(self._on_desc_changed)
         form.addRow("Description:", self.desc_edit)
 
@@ -738,12 +739,106 @@ class OperationEditor(QWidget, EditorStyleMixin):
 
         # Arguments section
         args_group = QGroupBox("Arguments")
+        args_group.setStyleSheet("""
+            QGroupBox {
+                color: #d4d4d4;
+                border: 1px solid #3e3e42;
+                border-radius: 4px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+        """)
         args_layout = QVBoxLayout(args_group)
-        self.args_label = QLabel("No arguments defined")
-        args_layout.addWidget(self.args_label)
+        
+        # Arguments list
+        self.args_list = QListWidget()
+        self.args_list.setMaximumHeight(150)
+        self.args_list.setStyleSheet("""
+            QListWidget {
+                background-color: #1e1e1e;
+                color: #d4d4d4;
+                border: 1px solid #3e3e42;
+            }
+            QListWidget::item {
+                padding: 5px;
+            }
+            QListWidget::item:selected {
+                background-color: #094771;
+            }
+        """)
+        self.args_list.currentRowChanged.connect(self._on_arg_selected)
+        args_layout.addWidget(self.args_list)
+        
+        # Argument buttons
+        btn_layout = QHBoxLayout()
+        self.add_arg_btn = QPushButton("+ Add")
+        self.add_arg_btn.clicked.connect(self._add_argument)
+        self.remove_arg_btn = QPushButton("- Remove")
+        self.remove_arg_btn.clicked.connect(self._remove_argument)
+        self.move_up_btn = QPushButton("↑ Up")
+        self.move_up_btn.clicked.connect(self._move_arg_up)
+        self.move_down_btn = QPushButton("↓ Down")
+        self.move_down_btn.clicked.connect(self._move_arg_down)
+        
+        for btn in [self.add_arg_btn, self.remove_arg_btn, self.move_up_btn, self.move_down_btn]:
+            btn.setStyleSheet("""
+                QPushButton {
+                    background-color: #3e3e42;
+                    color: #d4d4d4;
+                    border: none;
+                    padding: 5px 10px;
+                    border-radius: 3px;
+                }
+                QPushButton:hover {
+                    background-color: #4a4a4a;
+                }
+                QPushButton:disabled {
+                    background-color: #2d2d30;
+                    color: #6d6d6d;
+                }
+            """)
+        
+        btn_layout.addWidget(self.add_arg_btn)
+        btn_layout.addWidget(self.remove_arg_btn)
+        btn_layout.addWidget(self.move_up_btn)
+        btn_layout.addWidget(self.move_down_btn)
+        btn_layout.addStretch()
+        args_layout.addLayout(btn_layout)
+        
+        # Argument editor (shown when an argument is selected)
+        self.arg_editor_widget = QWidget()
+        arg_form = QFormLayout(self.arg_editor_widget)
+        arg_form.setContentsMargins(0, 10, 0, 0)
+        
+        self.arg_name_edit = QLineEdit()
+        self.arg_name_edit.textChanged.connect(self._on_arg_name_changed)
+        arg_form.addRow("Arg Name:", self.arg_name_edit)
+        
+        self.arg_type_combo = QComboBox()
+        for dt in BaseDataType:
+            self.arg_type_combo.addItem(dt.value, dt)
+        self.arg_type_combo.currentIndexChanged.connect(self._on_arg_type_changed)
+        arg_form.addRow("Arg Type:", self.arg_type_combo)
+        
+        self.arg_dir_combo = QComboBox()
+        self.arg_dir_combo.addItem("IN", ArgumentDirection.IN)
+        self.arg_dir_combo.addItem("OUT", ArgumentDirection.OUT)
+        self.arg_dir_combo.addItem("INOUT", ArgumentDirection.INOUT)
+        self.arg_dir_combo.currentIndexChanged.connect(self._on_arg_dir_changed)
+        arg_form.addRow("Direction:", self.arg_dir_combo)
+        
+        self.arg_editor_widget.setVisible(False)
+        args_layout.addWidget(self.arg_editor_widget)
+        
         layout.addWidget(args_group)
-
         layout.addStretch()
+        
+        self._update_button_states()
 
     def set_operation(self, op: Operation, app_types: list = None):
         self._updating = True
@@ -758,17 +853,138 @@ class OperationEditor(QWidget, EditorStyleMixin):
                 self.return_combo.setCurrentIndex(i)
                 break
         
-        # Update arguments display
-        if op.arguments:
-            args_text = "\n".join([
-                f"• {arg.name}: {arg.base_type.value} ({arg.direction.value})"
-                for arg in op.arguments
-            ])
-            self.args_label.setText(args_text)
-        else:
-            self.args_label.setText("No arguments defined")
+        # Update arguments list
+        self._refresh_args_list()
         
         self._updating = False
+
+    def _refresh_args_list(self):
+        """Refresh the arguments list widget."""
+        self._updating = True
+        current_row = self.args_list.currentRow()
+        self.args_list.clear()
+        
+        if self.operation:
+            for arg in self.operation.arguments:
+                dir_str = {"in": "→", "out": "←", "inout": "↔"}[arg.direction.value]
+                self.args_list.addItem(f"{dir_str} {arg.name}: {arg.base_type.value}")
+        
+        # Restore selection
+        if current_row >= 0 and current_row < self.args_list.count():
+            self.args_list.setCurrentRow(current_row)
+        elif self.args_list.count() > 0:
+            self.args_list.setCurrentRow(0)
+        else:
+            self.arg_editor_widget.setVisible(False)
+        
+        self._update_button_states()
+        self._updating = False
+
+    def _update_button_states(self):
+        """Update button enabled states based on selection."""
+        has_selection = self.args_list.currentRow() >= 0
+        count = self.args_list.count()
+        current = self.args_list.currentRow()
+        
+        self.remove_arg_btn.setEnabled(has_selection)
+        self.move_up_btn.setEnabled(has_selection and current > 0)
+        self.move_down_btn.setEnabled(has_selection and current < count - 1)
+
+    def _on_arg_selected(self, row):
+        """Handle argument selection change."""
+        if row >= 0 and self.operation and row < len(self.operation.arguments):
+            arg = self.operation.arguments[row]
+            self._updating = True
+            
+            self.arg_name_edit.setText(arg.name)
+            
+            for i in range(self.arg_type_combo.count()):
+                if self.arg_type_combo.itemData(i) == arg.base_type:
+                    self.arg_type_combo.setCurrentIndex(i)
+                    break
+            
+            for i in range(self.arg_dir_combo.count()):
+                if self.arg_dir_combo.itemData(i) == arg.direction:
+                    self.arg_dir_combo.setCurrentIndex(i)
+                    break
+            
+            self.arg_editor_widget.setVisible(True)
+            self._updating = False
+        else:
+            self.arg_editor_widget.setVisible(False)
+        
+        self._update_button_states()
+
+    def _add_argument(self):
+        """Add a new argument."""
+        if not self.operation:
+            return
+        
+        # Generate unique name
+        idx = len(self.operation.arguments) + 1
+        name = f"arg{idx}"
+        
+        arg = OperationArgument(name=name)
+        self.operation.arguments.append(arg)
+        
+        self._refresh_args_list()
+        self.args_list.setCurrentRow(len(self.operation.arguments) - 1)
+        self.changed.emit()
+
+    def _remove_argument(self):
+        """Remove the selected argument."""
+        row = self.args_list.currentRow()
+        if row >= 0 and self.operation and row < len(self.operation.arguments):
+            del self.operation.arguments[row]
+            self._refresh_args_list()
+            self.changed.emit()
+
+    def _move_arg_up(self):
+        """Move selected argument up."""
+        row = self.args_list.currentRow()
+        if row > 0 and self.operation:
+            self.operation.arguments[row], self.operation.arguments[row-1] = \
+                self.operation.arguments[row-1], self.operation.arguments[row]
+            self._refresh_args_list()
+            self.args_list.setCurrentRow(row - 1)
+            self.changed.emit()
+
+    def _move_arg_down(self):
+        """Move selected argument down."""
+        row = self.args_list.currentRow()
+        if row >= 0 and self.operation and row < len(self.operation.arguments) - 1:
+            self.operation.arguments[row], self.operation.arguments[row+1] = \
+                self.operation.arguments[row+1], self.operation.arguments[row]
+            self._refresh_args_list()
+            self.args_list.setCurrentRow(row + 1)
+            self.changed.emit()
+
+    def _on_arg_name_changed(self, text):
+        if self._updating:
+            return
+        row = self.args_list.currentRow()
+        if row >= 0 and self.operation and row < len(self.operation.arguments):
+            self.operation.arguments[row].name = text
+            self._refresh_args_list()
+            self.changed.emit()
+
+    def _on_arg_type_changed(self, index):
+        if self._updating:
+            return
+        row = self.args_list.currentRow()
+        if row >= 0 and self.operation and row < len(self.operation.arguments):
+            self.operation.arguments[row].base_type = self.arg_type_combo.currentData()
+            self._refresh_args_list()
+            self.changed.emit()
+
+    def _on_arg_dir_changed(self, index):
+        if self._updating:
+            return
+        row = self.args_list.currentRow()
+        if row >= 0 and self.operation and row < len(self.operation.arguments):
+            self.operation.arguments[row].direction = self.arg_dir_combo.currentData()
+            self._refresh_args_list()
+            self.changed.emit()
 
     def _on_name_changed(self, text):
         if not self._updating and self.operation:
