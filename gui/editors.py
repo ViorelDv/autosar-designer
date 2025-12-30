@@ -13,7 +13,8 @@ from model import (
     SoftwareComponent, Interface, Port, Runnable,
     DataElement, Operation, OperationArgument, InterfaceType, PortDirection, 
     BaseDataType, ApplicationDataType, ImplementationDataType, CompuMethod,
-    DataTypeMapping, AppDataCategory, ArgumentDirection, PortConnection, Project
+    DataTypeMapping, AppDataCategory, ArgumentDirection, PortConnection, Project,
+    RunnableTrigger
 )
 
 
@@ -380,6 +381,8 @@ class RunnableEditor(QWidget, EditorStyleMixin):
     def __init__(self):
         super().__init__()
         self.runnable: Runnable = None
+        self.swc: SoftwareComponent = None
+        self.project: Project = None
         self._updating = False
         self.apply_editor_style()
         self._setup_ui()
@@ -399,43 +402,188 @@ class RunnableEditor(QWidget, EditorStyleMixin):
         self.name_edit.textChanged.connect(self._on_name_changed)
         form.addRow("Name:", self.name_edit)
 
+        # Trigger type
+        self.trigger_combo = QComboBox()
+        self.trigger_combo.addItem("⏱️ Timing (Periodic)", "timing")
+        self.trigger_combo.addItem("⚡ Operation Invoked (Server)", "operation_invoked")
+        self.trigger_combo.addItem("📨 Data Received (S/R)", "data_received")
+        self.trigger_combo.currentIndexChanged.connect(self._on_trigger_changed)
+        form.addRow("Trigger:", self.trigger_combo)
+
+        # Period (for timing trigger)
+        self.period_label = QLabel("Period:")
         self.period_spin = QSpinBox()
         self.period_spin.setRange(0, 10000)
         self.period_spin.setSuffix(" ms")
-        self.period_spin.setSpecialValueText("Event-triggered")
+        self.period_spin.setSpecialValueText("Init/Background")
         self.period_spin.valueChanged.connect(self._on_period_changed)
-        form.addRow("Period:", self.period_spin)
+        form.addRow(self.period_label, self.period_spin)
+
+        # Operation trigger (for operation_invoked)
+        self.operation_label = QLabel("Server Operation:")
+        self.operation_combo = QComboBox()
+        self.operation_combo.currentIndexChanged.connect(self._on_operation_trigger_changed)
+        form.addRow(self.operation_label, self.operation_combo)
+
+        # Data element trigger (for data_received)
+        self.data_element_label = QLabel("Data Element:")
+        self.data_element_combo = QComboBox()
+        self.data_element_combo.currentIndexChanged.connect(self._on_data_trigger_changed)
+        form.addRow(self.data_element_label, self.data_element_combo)
 
         self.desc_edit = QTextEdit()
-        self.desc_edit.setMaximumHeight(100)
+        self.desc_edit.setMaximumHeight(80)
         self.desc_edit.textChanged.connect(self._on_desc_changed)
         form.addRow("Description:", self.desc_edit)
 
         layout.addLayout(form)
 
-        # Tip
-        tip = QLabel("💡 Set period to 0 for event-triggered runnables")
-        tip.setStyleSheet("color: #6a9955; padding-top: 10px;")
-        layout.addWidget(tip)
+        # Tips
+        self.tip_label = QLabel()
+        self.tip_label.setStyleSheet("color: #6a9955; padding-top: 10px;")
+        self.tip_label.setWordWrap(True)
+        layout.addWidget(self.tip_label)
 
         layout.addStretch()
+        
+        self._update_visibility()
 
-    def set_runnable(self, runnable: Runnable):
+    def _update_visibility(self):
+        """Show/hide fields based on trigger type."""
+        trigger = self.trigger_combo.currentData()
+        
+        # Period only for timing
+        is_timing = trigger == "timing"
+        self.period_spin.setVisible(is_timing)
+        self.period_label.setVisible(is_timing)
+        
+        # Operation combo only for operation_invoked
+        is_operation = trigger == "operation_invoked"
+        self.operation_combo.setVisible(is_operation)
+        self.operation_label.setVisible(is_operation)
+        
+        # Data element combo only for data_received
+        is_data = trigger == "data_received"
+        self.data_element_combo.setVisible(is_data)
+        self.data_element_label.setVisible(is_data)
+        
+        # Update tip
+        tips = {
+            "timing": "💡 Periodic runnable. Set period to 0 for init/background execution.",
+            "operation_invoked": "💡 Triggered when a client calls this server operation.",
+            "data_received": "💡 Triggered when new data is received on a Sender/Receiver port.",
+        }
+        self.tip_label.setText(tips.get(trigger, ""))
+
+    def set_runnable(self, runnable: Runnable, swc: SoftwareComponent = None, project: Project = None):
         self._updating = True
         self.runnable = runnable
+        self.swc = swc
+        self.project = project
+        
         self.name_edit.setText(runnable.name)
         self.period_spin.setValue(runnable.period_ms)
         self.desc_edit.setPlainText(runnable.description)
+        
+        # Set trigger type
+        for i in range(self.trigger_combo.count()):
+            if self.trigger_combo.itemData(i) == runnable.trigger.value:
+                self.trigger_combo.setCurrentIndex(i)
+                break
+        
+        # Populate operation combo (server operations from provided C/S ports)
+        self._populate_operations()
+        
+        # Populate data element combo (from required S/R ports)
+        self._populate_data_elements()
+        
+        self._update_visibility()
         self._updating = False
+
+    def _populate_operations(self):
+        """Populate server operations from provided C/S ports."""
+        self.operation_combo.clear()
+        self.operation_combo.addItem("(Select operation)", None)
+        
+        if not self.swc or not self.project:
+            return
+        
+        for port in self.swc.ports:
+            if port.direction == PortDirection.PROVIDED and port.interface_uid:
+                iface = self.project.get_interface_by_uid(port.interface_uid)
+                if iface and iface.interface_type == InterfaceType.CLIENT_SERVER:
+                    for op in iface.operations:
+                        self.operation_combo.addItem(
+                            f"{port.name}.{op.name}",
+                            (port.uid, op.uid)
+                        )
+                        # Select if matches current trigger
+                        if (self.runnable and 
+                            self.runnable.trigger_port_uid == port.uid and
+                            self.runnable.trigger_operation_uid == op.uid):
+                            self.operation_combo.setCurrentIndex(self.operation_combo.count() - 1)
+
+    def _populate_data_elements(self):
+        """Populate data elements from required S/R ports."""
+        self.data_element_combo.clear()
+        self.data_element_combo.addItem("(Select data element)", None)
+        
+        if not self.swc or not self.project:
+            return
+        
+        for port in self.swc.ports:
+            if port.direction == PortDirection.REQUIRED and port.interface_uid:
+                iface = self.project.get_interface_by_uid(port.interface_uid)
+                if iface and iface.interface_type == InterfaceType.SENDER_RECEIVER:
+                    for de in iface.data_elements:
+                        self.data_element_combo.addItem(
+                            f"{port.name}.{de.name}",
+                            (port.uid, de.uid)
+                        )
+                        # Select if matches current trigger
+                        if (self.runnable and
+                            self.runnable.trigger_port_uid == port.uid and
+                            self.runnable.trigger_data_element_uid == de.uid):
+                            self.data_element_combo.setCurrentIndex(self.data_element_combo.count() - 1)
 
     def _on_name_changed(self, text):
         if not self._updating and self.runnable:
             self.runnable.name = text
             self.changed.emit()
 
+    def _on_trigger_changed(self, index):
+        if not self._updating and self.runnable:
+            from model import RunnableTrigger
+            trigger_str = self.trigger_combo.currentData()
+            self.runnable.trigger = RunnableTrigger(trigger_str)
+            self._update_visibility()
+            self.changed.emit()
+
     def _on_period_changed(self, value):
         if not self._updating and self.runnable:
             self.runnable.period_ms = value
+            self.changed.emit()
+
+    def _on_operation_trigger_changed(self, index):
+        if not self._updating and self.runnable:
+            data = self.operation_combo.currentData()
+            if data:
+                self.runnable.trigger_port_uid = data[0]
+                self.runnable.trigger_operation_uid = data[1]
+            else:
+                self.runnable.trigger_port_uid = None
+                self.runnable.trigger_operation_uid = None
+            self.changed.emit()
+
+    def _on_data_trigger_changed(self, index):
+        if not self._updating and self.runnable:
+            data = self.data_element_combo.currentData()
+            if data:
+                self.runnable.trigger_port_uid = data[0]
+                self.runnable.trigger_data_element_uid = data[1]
+            else:
+                self.runnable.trigger_port_uid = None
+                self.runnable.trigger_data_element_uid = None
             self.changed.emit()
 
     def _on_desc_changed(self):

@@ -22,7 +22,7 @@ extern "C" {
 /* Interface: {{ interface.name }} */
 {% for de in interface.data_elements %}
 /* Data Element: {{ de.name }} - {{ de.description }} */
-typedef {{ de.data_type.value | c_type }} Rte_{{ interface.name }}_{{ de.name }}_Type;
+typedef {{ de.base_type.value | c_type }} Rte_{{ interface.name }}_{{ de.name }}_Type;
 #define RTE_{{ interface.name | upper }}_{{ de.name | upper }}_INIT  ({{ de.init_value }})
 
 {% endfor %}

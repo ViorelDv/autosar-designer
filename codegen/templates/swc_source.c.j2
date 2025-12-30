@@ -63,13 +63,13 @@ void {{ runnable.name }}(void)
 {% if port.direction.value == "required" %}
     /* Read from {{ port.name }} */
 {% for de in port.interface.data_elements %}
-    /* {{ de.data_type.value }} {{ de.name }}; */
+    /* {{ de.base_type.value }} {{ de.name }}; */
     /* (void)Rte_Read_{{ port.name }}_{{ de.name }}(&{{ de.name }}); */
 {% endfor %}
 {% else %}
     /* Write to {{ port.name }} */
 {% for de in port.interface.data_elements %}
-    /* {{ de.data_type.value }} {{ de.name }} = {{ de.init_value }}; */
+    /* {{ de.base_type.value }} {{ de.name }} = {{ de.init_value }}; */
     /* (void)Rte_Write_{{ port.name }}_{{ de.name }}({{ de.name }}); */
 {% endfor %}
 {% endif %}

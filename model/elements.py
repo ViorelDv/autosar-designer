@@ -397,27 +397,55 @@ class Port:
         )
 
 
+class RunnableTrigger(Enum):
+    """Trigger type for runnables."""
+    TIMING = "timing"           # Periodic execution
+    OPERATION_INVOKED = "operation_invoked"  # Server operation call
+    DATA_RECEIVED = "data_received"  # S/R data reception
+
+
 @dataclass
 class Runnable:
     """Runnable entity within an SWC."""
     name: str
-    period_ms: int = 10  # 0 = event-triggered
+    trigger: RunnableTrigger = RunnableTrigger.TIMING
+    period_ms: int = 10  # For TIMING trigger, 0 = init/background
+    # For OPERATION_INVOKED trigger - references port and operation
+    trigger_port_uid: Optional[str] = None
+    trigger_operation_uid: Optional[str] = None
+    # For DATA_RECEIVED trigger - references port and data element
+    trigger_data_element_uid: Optional[str] = None
     description: str = ""
     uid: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
 
     def to_dict(self) -> dict:
         return {
             "name": self.name,
+            "trigger": self.trigger.value,
             "period_ms": self.period_ms,
+            "trigger_port_uid": self.trigger_port_uid,
+            "trigger_operation_uid": self.trigger_operation_uid,
+            "trigger_data_element_uid": self.trigger_data_element_uid,
             "description": self.description,
             "uid": self.uid,
         }
 
     @classmethod
     def from_dict(cls, data: dict) -> "Runnable":
+        # Handle old format (just period_ms)
+        trigger_str = data.get("trigger", "timing")
+        try:
+            trigger = RunnableTrigger(trigger_str)
+        except ValueError:
+            trigger = RunnableTrigger.TIMING
+            
         return cls(
             name=data["name"],
+            trigger=trigger,
             period_ms=data.get("period_ms", 10),
+            trigger_port_uid=data.get("trigger_port_uid"),
+            trigger_operation_uid=data.get("trigger_operation_uid"),
+            trigger_data_element_uid=data.get("trigger_data_element_uid"),
             description=data.get("description", ""),
             uid=data.get("uid", str(uuid.uuid4())[:8]),
         )

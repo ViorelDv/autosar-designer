@@ -32,7 +32,7 @@ extern "C" {
  * @param[out] data Pointer to store {{ de.name }}
  * @return Std_ReturnType E_OK on success
  */
-Std_ReturnType Rte_Read_{{ port.name }}_{{ de.name }}({{ de.data_type.value | c_type }}* data);
+Std_ReturnType Rte_Read_{{ port.name }}_{{ de.name }}({{ de.base_type.value | c_type }}* data);
 
 {% else %}
 /**
@@ -40,7 +40,7 @@ Std_ReturnType Rte_Read_{{ port.name }}_{{ de.name }}({{ de.data_type.value | c_
  * @param[in] data Value of {{ de.name }}
  * @return Std_ReturnType E_OK on success
  */
-Std_ReturnType Rte_Write_{{ port.name }}_{{ de.name }}({{ de.data_type.value | c_type }} data);
+Std_ReturnType Rte_Write_{{ port.name }}_{{ de.name }}({{ de.base_type.value | c_type }} data);
 
 {% endif %}
 {% endfor %}
@@ -58,16 +58,16 @@ Std_ReturnType Rte_Write_{{ port.name }}_{{ de.name }}({{ de.data_type.value | c
 /**
  * @brief Call {{ op.name }} via {{ port.name }}
 {% for arg in op.arguments %}
- * @param[{{ arg[2] }}] {{ arg[0] }} {{ arg[1].value }} parameter
+ * @param[{{ arg.direction.value }}] {{ arg.name }} {{ arg.base_type.value }} parameter
 {% endfor %}
- * @return {{ op.return_type.value | c_type }}
+ * @return {{ op.return_base_type.value | c_type }}
  */
-{{ op.return_type.value | c_type }} Rte_Call_{{ port.name }}_{{ op.name }}(
+{{ op.return_base_type.value | c_type }} Rte_Call_{{ port.name }}_{{ op.name }}(
 {%- for arg in op.arguments -%}
-{%- if arg[2] == "in" -%}
-{{ arg[1].value | c_type }} {{ arg[0] }}
+{%- if arg.direction.value == "in" -%}
+{{ arg.base_type.value | c_type }} {{ arg.name }}
 {%- else -%}
-{{ arg[1].value | c_type }}* {{ arg[0] }}
+{{ arg.base_type.value | c_type }}* {{ arg.name }}
 {%- endif -%}
 {%- if not loop.last %}, {% endif -%}
 {%- endfor -%}

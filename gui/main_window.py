@@ -17,6 +17,7 @@ from model import (
     DataElement, Operation, OperationArgument, InterfaceType, PortDirection, 
     BaseDataType, ApplicationDataType, ImplementationDataType, CompuMethod,
     DataTypeMapping, AppDataCategory, ArgumentDirection, PortConnection,
+    RunnableTrigger,
     save_project, load_project, create_example_project,
     MultiFileProject
 )
@@ -33,8 +34,9 @@ from gui.composition_view import CompositionWidget
 class ProjectTreeWidget(QTreeWidget):
     """Tree widget for browsing project elements."""
 
-    def __init__(self, parent=None):
+    def __init__(self, main_window, parent=None):
         super().__init__(parent)
+        self.main_window = main_window  # Store reference to MainWindow
         self.setHeaderLabel("Project Explorer")
         self.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
         self.customContextMenuRequested.connect(self._show_context_menu)
@@ -63,13 +65,14 @@ class ProjectTreeWidget(QTreeWidget):
         """Show context menu for tree items."""
         item = self.itemAt(position)
         menu = QMenu(self)
+        mw = self.main_window  # Shorthand for main window
 
         if item is None:
             # Right-click on empty space
             add_swc = menu.addAction("Add Software Component")
             add_iface = menu.addAction("Add Interface")
-            add_swc.triggered.connect(lambda: self.parent().parent()._add_swc())
-            add_iface.triggered.connect(lambda: self.parent().parent()._add_interface())
+            add_swc.triggered.connect(mw._add_swc)
+            add_iface.triggered.connect(mw._add_interface)
         else:
             item_type = item.data(0, Qt.ItemDataRole.UserRole + 1)
             
@@ -78,21 +81,21 @@ class ProjectTreeWidget(QTreeWidget):
                 add_run = menu.addAction("Add Runnable")
                 menu.addSeparator()
                 delete = menu.addAction("Delete Component")
-                add_port.triggered.connect(lambda: self.parent().parent()._add_port(item))
-                add_run.triggered.connect(lambda: self.parent().parent()._add_runnable(item))
-                delete.triggered.connect(lambda: self.parent().parent()._delete_item(item))
+                add_port.triggered.connect(lambda checked, i=item: mw._add_port(i))
+                add_run.triggered.connect(lambda checked, i=item: mw._add_runnable(i))
+                delete.triggered.connect(lambda checked, i=item: mw._delete_item(i))
             
             elif item_type == "interface":
                 iface = item.data(0, Qt.ItemDataRole.UserRole)
                 if iface.interface_type == InterfaceType.SENDER_RECEIVER:
                     add_de = menu.addAction("Add Data Element")
-                    add_de.triggered.connect(lambda: self.parent().parent()._add_data_element(item))
+                    add_de.triggered.connect(lambda checked, i=item: mw._add_data_element(i))
                 else:
                     add_op = menu.addAction("Add Operation")
-                    add_op.triggered.connect(lambda: self.parent().parent()._add_operation(item))
+                    add_op.triggered.connect(lambda checked, i=item: mw._add_operation(i))
                 menu.addSeparator()
                 delete = menu.addAction("Delete Interface")
-                delete.triggered.connect(lambda: self.parent().parent()._delete_item(item))
+                delete.triggered.connect(lambda checked, i=item: mw._delete_item(i))
             
             elif item_type in ("port", "runnable", "data_element", "operation", 
                                "app_data_type", "impl_data_type", "compu_method", "connection"):
@@ -103,34 +106,34 @@ class ProjectTreeWidget(QTreeWidget):
                     if port.direction == PortDirection.PROVIDED:
                         connect_action = menu.addAction("Connect to Required Port...")
                         connect_action.triggered.connect(
-                            lambda: self.parent().parent()._create_connection_from_port(swc, port))
+                            lambda checked, s=swc, p=port: mw._create_connection_from_port(s, p))
                         menu.addSeparator()
                 delete = menu.addAction("Delete")
-                delete.triggered.connect(lambda: self.parent().parent()._delete_item(item))
+                delete.triggered.connect(lambda checked, i=item: mw._delete_item(i))
             
             elif item_type == "components_folder":
                 add_swc = menu.addAction("Add Software Component")
-                add_swc.triggered.connect(lambda: self.parent().parent()._add_swc())
+                add_swc.triggered.connect(mw._add_swc)
             
             elif item_type == "interfaces_folder":
                 add_iface = menu.addAction("Add Interface")
-                add_iface.triggered.connect(lambda: self.parent().parent()._add_interface())
+                add_iface.triggered.connect(mw._add_interface)
 
             elif item_type == "connections_folder":
                 add_conn = menu.addAction("Add Connection...")
-                add_conn.triggered.connect(lambda: self.parent().parent()._add_connection())
+                add_conn.triggered.connect(mw._add_connection)
 
             elif item_type == "app_types_folder":
                 add_adt = menu.addAction("Add Application Data Type")
-                add_adt.triggered.connect(lambda: self.parent().parent()._add_app_data_type())
+                add_adt.triggered.connect(mw._add_app_data_type)
 
             elif item_type == "impl_types_folder":
                 add_idt = menu.addAction("Add Implementation Data Type")
-                add_idt.triggered.connect(lambda: self.parent().parent()._add_impl_data_type())
+                add_idt.triggered.connect(mw._add_impl_data_type)
 
             elif item_type == "compu_methods_folder":
                 add_cm = menu.addAction("Add CompuMethod")
-                add_cm.triggered.connect(lambda: self.parent().parent()._add_compu_method())
+                add_cm.triggered.connect(mw._add_compu_method)
 
         menu.exec(self.mapToGlobal(position))
 
@@ -503,7 +506,14 @@ class MainWindow(QMainWindow):
 
             # Runnables
             for run in swc.runnables:
-                run_item = QTreeWidgetItem([f"  ▷ {run.name}"])
+                # Show trigger type icon
+                trigger_icons = {
+                    RunnableTrigger.TIMING: "⏱️",
+                    RunnableTrigger.OPERATION_INVOKED: "⚡",
+                    RunnableTrigger.DATA_RECEIVED: "📨",
+                }
+                trigger_icon = trigger_icons.get(run.trigger, "▷")
+                run_item = QTreeWidgetItem([f"  {trigger_icon} {run.name}"])
                 run_item.setData(0, Qt.ItemDataRole.UserRole, run)
                 run_item.setData(0, Qt.ItemDataRole.UserRole + 1, "runnable")
                 run_item.setData(0, Qt.ItemDataRole.UserRole + 2, swc)
@@ -554,7 +564,8 @@ class MainWindow(QMainWindow):
             self.port_editor.set_port(obj, self.project.interfaces, self.project)
             self.editor_stack.setCurrentIndex(3)
         elif item_type == "runnable":
-            self.runnable_editor.set_runnable(obj)
+            swc = item.data(0, Qt.ItemDataRole.UserRole + 2)
+            self.runnable_editor.set_runnable(obj, swc, self.project)
             self.editor_stack.setCurrentIndex(4)
         elif item_type == "data_element":
             self.data_element_editor.set_data_element(obj, self.project.application_data_types)

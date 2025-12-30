@@ -6,6 +6,7 @@ from .elements import (
     DataType,  # Alias for backwards compatibility
     AppDataCategory,
     ArgumentDirection,
+    RunnableTrigger,
     # Data Types
     CompuMethod,
     ApplicationDataType,
@@ -43,6 +44,7 @@ __all__ = [
     "DataType",
     "AppDataCategory",
     "ArgumentDirection",
+    "RunnableTrigger",
     # Data Types
     "CompuMethod",
     "ApplicationDataType",
