@@ -109,7 +109,7 @@ class ConnectionDialog(QDialog):
             QLabel {
                 color: #d4d4d4;
             }
-            QLineEdit, QComboBox {
+            QLineEdit {
                 background-color: #3c3c3c;
                 color: #d4d4d4;
                 border: 1px solid #555555;
@@ -117,8 +117,45 @@ class ConnectionDialog(QDialog):
                 padding: 5px;
                 min-height: 25px;
             }
-            QLineEdit:focus, QComboBox:focus {
+            QLineEdit:focus {
                 border: 1px solid #007acc;
+            }
+            QComboBox {
+                background-color: #3c3c3c;
+                color: #d4d4d4;
+                border: 1px solid #555555;
+                border-radius: 4px;
+                padding: 5px;
+                min-height: 25px;
+            }
+            QComboBox:focus {
+                border: 1px solid #007acc;
+            }
+            QComboBox::drop-down {
+                border: none;
+                width: 20px;
+            }
+            QComboBox::down-arrow {
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 6px solid #d4d4d4;
+                margin-right: 5px;
+            }
+            QComboBox QAbstractItemView {
+                background-color: #2d2d30;
+                color: #d4d4d4;
+                border: 1px solid #555555;
+                selection-background-color: #094771;
+                selection-color: #ffffff;
+                outline: none;
+            }
+            QComboBox QAbstractItemView::item {
+                padding: 5px;
+                min-height: 25px;
+            }
+            QComboBox QAbstractItemView::item:hover {
+                background-color: #3e3e42;
             }
             QGroupBox {
                 font-weight: bold;

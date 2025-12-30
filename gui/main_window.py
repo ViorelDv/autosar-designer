@@ -503,12 +503,17 @@ class MainWindow(QMainWindow):
             swc_item.setData(0, Qt.ItemDataRole.UserRole + 1, "swc")
             comps_folder.addChild(swc_item)
 
-            # Ports
+            # Ports - using AUTOSAR-style icons
+            # ■▶ = Provided (sender/server) - filled square with arrow out
+            # □◀ = Required (receiver/client) - empty square with arrow in
             for port in swc.ports:
-                icon = "◀" if port.direction == PortDirection.REQUIRED else "▶"
+                if port.direction == PortDirection.PROVIDED:
+                    icon = "▶■"  # Provided: arrow out from filled square
+                else:
+                    icon = "□◀"  # Required: arrow in to empty square
                 # Show connection status
                 connections = self.project.get_connections_for_port(port.uid)
-                conn_indicator = " 🔌" if connections else ""
+                conn_indicator = " 🔗" if connections else ""
                 port_item = QTreeWidgetItem([f"  {icon} {port.name}{conn_indicator}"])
                 port_item.setData(0, Qt.ItemDataRole.UserRole, port)
                 port_item.setData(0, Qt.ItemDataRole.UserRole + 1, "port")
@@ -700,9 +705,13 @@ class MainWindow(QMainWindow):
             icon = "🔗" if obj.interface_type == InterfaceType.SENDER_RECEIVER else "⚡"
             item.setText(0, f"{icon} {obj.name}")
         elif item_type == "port":
-            icon = "◀" if obj.direction == PortDirection.REQUIRED else "▶"
+            # AUTOSAR-style port icons
+            if obj.direction == PortDirection.PROVIDED:
+                icon = "▶■"  # Provided
+            else:
+                icon = "□◀"  # Required
             connections = self.project.get_connections_for_port(obj.uid)
-            conn_indicator = " 🔌" if connections else ""
+            conn_indicator = " 🔗" if connections else ""
             item.setText(0, f"  {icon} {obj.name}{conn_indicator}")
         elif item_type == "runnable":
             trigger_icons = {

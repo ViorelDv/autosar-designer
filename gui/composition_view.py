@@ -563,10 +563,10 @@ class CompositionWidget(QWidget):
         
         # Legend
         legend = QLabel(
-            "  <span style='color:#4ec9b0'>● Provided (Sender/Server)</span>"
-            "  <span style='color:#dcdcaa'>● Required (Receiver/Client)</span>"
-            "  <span style='color:#4ec9b0'>― S/R Connection</span>"
-            "  <span style='color:#c586c0'>― C/S Connection</span>"
+            "  <span style='color:#4ec9b0'>▶■ Provided (P-Port)</span>"
+            "  <span style='color:#dcdcaa'>□◀ Required (R-Port)</span>"
+            "  <span style='color:#4ec9b0'>━ S/R Connection</span>"
+            "  <span style='color:#c586c0'>━ C/S Connection</span>"
         )
         legend.setStyleSheet("color: #808080; font-size: 11px;")
         toolbar.addWidget(legend)
